@@ -1,0 +1,45 @@
+{
+  "name": "Series of Tubes \u2014 Performance Preview",
+  "short_name": "Tubes Preview",
+  "description": "A cartoon game about building the internet.",
+  "start_url": "/seriesoftubes/",
+  "scope": "/seriesoftubes/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#57C4E5",
+  "theme_color": "#57C4E5",
+  "categories": [
+    "games",
+    "education",
+    "simulation"
+  ],
+  "icons": [
+    {
+      "src": "/seriesoftubes/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/seriesoftubes/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/seriesoftubes/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/seriesoftubes/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "id": "/seriesoftubes/",
+  "display_override": [
+    "standalone",
+    "fullscreen"
+  ],
+  "shortcuts": []
+}
