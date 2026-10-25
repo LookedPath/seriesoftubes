@@ -107,3 +107,50 @@ test('Connections pages retain all totals, filters, ordering and navigation', ()
     } finally { dom.window.close(); }
   }
 });
+
+test('paused maps skip idle paints but refresh after navigation, input and simulation changes', () => {
+  const { ev, dom, errors } = load();
+  try {
+    ev("ACT.start({});UI.speed=0;UI.anim='on';window.paints=0;draw=()=>paints++;last=0;frame(16)");
+    assert.equal(ev('paints'), 1);
+    ev('frame(32);frame(48)');assert.equal(ev('paints'), 1, 'idle pause does not redraw');
+    const changes = [
+      "ACT.focusCity({city:'ams'})",
+      'ACT.closePanel()',
+      'resize()',
+      'compute()',
+      "UI.drag={mode:'link',from:'fra',cx:100,cy:200};cv.dispatchEvent(new MouseEvent('pointermove',{clientX:110,clientY:210}))",
+      "UI.drag=null;cv.dispatchEvent(new Event('pointercancel'))",
+      "cv.dispatchEvent(new WheelEvent('wheel',{clientX:100,clientY:100,deltaY:20,cancelable:true}))",
+      "ACT.animSet({v:'off'})",
+    ];
+    for (const change of changes) {
+      const before = ev('paints');
+      ev(change);ev('frame(last+16)');
+      assert.equal(ev('paints'), before + 1, change);
+      ev('frame(last+16)');assert.equal(ev('paints'), before + 1, 'returns to idle');
+    }
+    // A failed repaint must stay dirty so the next frame can recover.
+    ev("window.goodDraw=draw;draw=()=>{throw Error('paint probe')};invalidateMap();frame(last+16)");
+    assert.equal(ev('mapDirty'), true);
+    ev('draw=goodDraw;frame(last+16)');assert.equal(ev('mapDirty'), false);
+    assert.deepEqual(errors, []);
+  } finally { dom.window.close(); }
+});
+
+test('animated play draws each frame; disabled animation draws on ticks and autosave still runs paused', () => {
+  const { ev, dom, errors } = load();
+  try {
+    ev("ACT.start({});UI.anim='on';UI.speed=1;window.paints=0;draw=()=>paints++;acc=0;last=0;frame(16);frame(32);frame(48)");
+    assert.equal(ev('paints'), 3);
+    ev("ACT.animSet({v:'off'});frame(64);frame(80)");
+    assert.equal(ev('paints'), 4, 'static map painted once after changing animation setting');
+    ev('acc=DAY_MS;frame(96)');assert.equal(ev('paints'), 5, 'simulation tick repaints');
+    ev("UI.speed=0;window.saved=0;save=()=>{saved++;UI.lastSave=last};UI.lastSave=0;frame(6000)");
+    assert.equal(ev('saved'), 1, 'paused game still autosaves');
+    assert.equal(ev('paints'), 5, 'autosave does not repaint');
+    ev("ACT.animSet({v:'on'});UI.speed=1;acc=0;frame(6016);frame(6032)");
+    assert.equal(ev('paints'), 7, 'resuming restores animation');
+    assert.deepEqual(errors, []);
+  } finally { dom.window.close(); }
+});

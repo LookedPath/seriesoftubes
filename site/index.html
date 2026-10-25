@@ -1268,6 +1268,9 @@ const GOALS=[
 
 /* ================= STATE ================= */
 let S=null, R=emptyR();
+// A stationary map only needs repainting after its state or viewport changes.
+let mapDirty=true;
+function invalidateMap(){mapDirty=true;}
 const UI={sel:null,tab:'cust',left:'goals',speed:1,hover:null,drag:null,snap:null,pending:null,confirm:null,leftOpen:false,muted:false,startCity:'fra',hintOff:false};
 let uidN=1; const uid=()=>'i'+(Date.now()%1e7).toString(36)+(uidN++);
 function emptyR(){return {teBlack:0,tNet:{},egT:{},netEg:{},l2lat:{},nodeLoad:{},nodeCap:{},div:{},l2:{},gfwLost:0,gfwCross:0,ef:{},egDesc:{},p95:{},peered:0,peerShare:0,load:{},useT:{},useIx:{},usePni:{},useCache:{},cityDem:{},citySrv:{},cityEye:{},demTo:{},served:0,demand:0,reach:0,sessions:0,revMo:0,costMo:0,cost:{},rev:{},reachable:{}};}
@@ -1724,7 +1727,7 @@ function teModal(msg){const src=UI.teDraft!==undefined?UI.teDraft:(S.te.script||
 function teTrial(src){const keep=S.te.script,on=S.te.on,before={served:R.served,tc:R.cost.transit||0,moved:R.teMoved||0};
   S.te.script=src;S.te.on=true;compute();const after={served:R.served,tc:R.cost.transit||0,moved:R.teMoved||0,bh:R.teBlack||0};
   S.te.script=keep;S.te.on=on;compute();return {before,after};}
-function compute(){const previous=COMPUTE_CACHE;COMPUTE_CACHE={rates:new Map(),fiber:new Map(),capacity:new Map(),diversity:new Map()};
+function compute(){invalidateMap();const previous=COMPUTE_CACHE;COMPUTE_CACHE={rates:new Map(),fiber:new Map(),capacity:new Map(),diversity:new Map()};
   try{return computeState();}finally{COMPUTE_CACHE=previous;}}
 function computeState(){
   const day=S.day, R2=emptyR(), pops=Object.keys(S.pops).filter(popUp);
@@ -2861,7 +2864,7 @@ function selectCity(c){UI.sel={type:'city',id:c};UI.confirm=null;if(isTablet()||
 function save(){if(!S||S.lost)return;S.uiSpeed=UI.speed;S.cam={x:cam.x,y:cam.y,z:cam.z};try{localStorage.setItem('sot-save-v1',JSON.stringify(S));}catch(e){}UI.lastSave=performance.now();}
 // Save whenever the player might be leaving: tab hidden, page closing or reloading.
 addEventListener('pagehide',()=>save());
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')save();else checkUpdate();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')save();else{invalidateMap();checkUpdate();}});
 /* Export / import: move a network to another device or keep a backup. The file is the same
    object the autosave writes, wrapped with a little metadata. */
 function saveFileName(){const d=new Date().toISOString().slice(0,10),n=(S&&S.name||'network').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'network';return `series-of-tubes-${n}-${d}.json`;}
@@ -2969,7 +2972,7 @@ function renderHUD(){
   if(!window.__TUBES_TEST__)fitHud();
   renderTabbar();
 }
-function renderLeft(){checkLayer();
+function renderLeft(){invalidateMap();checkLayer();
   // Tablets in landscape: both side panels don't fit next to the map, so the left one tucks away
   // while a city or link is open and comes back with the toggle button.
   const tab=isTablet(),L=$('left');L.classList.toggle('closed',tab?(!!UI.sel&&!UI.leftOpen):!UI.leftOpen);const tg=$('leftToggle');if(tg&&innerWidth>760)tg.hidden=!(tab&&L.classList.contains('closed'));
@@ -3023,7 +3026,7 @@ function renderLeft(){checkLayer();
   }
   if(h!==UI._lh){UI._lh=h;$('leftBody').innerHTML=h;}
 }
-function renderPanel(){checkLayer();
+function renderPanel(){invalidateMap();checkLayer();
   const P=$('panel');
   if(!S||!UI.sel){P.hidden=true;return;}
   P.hidden=false;
@@ -3708,7 +3711,7 @@ function fixStandaloneHeight(){const R0=document.documentElement;
   const sh=screen&&screen.width&&screen.height?(innerWidth>innerHeight?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height)):0,gap=sh-innerHeight;
   const on=sa&&/iPhone|iPod/.test(navigator.userAgent)&&sh>0&&gap>=0&&gap<=80;
   R0.classList.toggle('iosfix',on);if(on)R0.style.setProperty('--app-h',sh+'px');else R0.style.removeProperty('--app-h');return on?sh:0;}
-function resize(){const ah=fixStandaloneHeight();DPR=Math.min(2,window.devicePixelRatio||1);CW=innerWidth;CH=ah||innerHeight;cv.width=CW*DPR;cv.height=CH*DPR;}
+function resize(){invalidateMap();const ah=fixStandaloneHeight();DPR=Math.min(2,window.devicePixelRatio||1);CW=innerWidth;CH=ah||innerHeight;cv.width=CW*DPR;cv.height=CH*DPR;}
 addEventListener('resize',()=>{resize();WL.key=null;renderLeft();fitHud();});resize();
 // Viewport readout for debugging phone layouts: open the game once with ?vp in the address (or the start URL).
 function vpDebug(){let el=document.getElementById('vpdbg');if(!el){el=document.createElement('pre');el.id='vpdbg';el.style.cssText='position:fixed;left:8px;bottom:calc(var(--tabbar,0px) + 8px);z-index:99;margin:0;padding:6px 8px;background:rgba(30,38,64,.85);color:#7CFFB2;font:11px/1.35 ui-monospace,monospace;border-radius:8px;pointer-events:none';document.body.appendChild(el);
@@ -3737,7 +3740,7 @@ while(WAVES.length<220){const x=R1()*W,y=R1()*H;if(!onLand(x,y)&&!onLand(x+12,y)
 while(HILLS.length<130){const x=R1()*W,y=R1()*H;if(onLand(x,y)&&!CITIES.some(c=>Math.hypot(c.x-x,c.y-y)<40))HILLS.push([x,y,6+R1()*10,R1()]);}
 const CLOUDS=Array.from({length:7},(_,i)=>({x:R1()*W,y:60+R1()*(H-120),s:.7+R1()*.6,v:3+R1()*4}));
 const FLOATS=[];
-function floater(x,y,text,col){if(!animOn())return;FLOATS.push({x,y,text,col,t:performance.now()});}
+function floater(x,y,text,col){if(!animOn())return;invalidateMap();FLOATS.push({x,y,text,col,t:performance.now()});}
 // Static markup: data-i18n text and every aria-label/title go through the dictionary once at boot.
 function i18nDom(){if(LANG==='en')return;for(const el of document.querySelectorAll('[data-i18n]'))el.textContent=tr(el.textContent);
   for(const a of ['aria-label','title'])for(const el of document.querySelectorAll('['+a+']'))el.setAttribute(a,tr(el.getAttribute(a)));}
@@ -3767,7 +3770,7 @@ function settingsHtml(){const seg=(lab,act,cur,opts,note)=>`<div class="setline"
   ${installRow()}<div class="btns" style="margin-top:12px">${btn(tr('Done'),'settingsClose',{},'pink')}</div>`;}
 const refreshSettings=()=>{if(UI.setOpen)openModal(settingsHtml());};
 function animOn(){const m=UI.anim||'auto';if(m==='on')return true;if(m==='off')return false;try{return !matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){return true;}}
-function applyAnim(){const r=document.documentElement;r.classList.toggle('no-anim',UI.anim==='off');r.classList.toggle('anim-force',UI.anim==='on');if(!animOn())FLOATS.length=0;}
+function applyAnim(){invalidateMap();const r=document.documentElement;r.classList.toggle('no-anim',UI.anim==='off');r.classList.toggle('anim-force',UI.anim==='on');if(!animOn())FLOATS.length=0;}
 const toS=(wx,wy,k=0)=>[(wx+k*W-cam.x)*cam.z+CW/2,(wy-cam.y)*cam.z+CH/2];
 const iconScale=()=>clamp(Math.sqrt(cam.z),0.7,1.35);
 /* Level of detail (#37): zoomed out the map turns into a network map, with dots for cities, small
@@ -3954,7 +3957,7 @@ function drawBackhoe(x,y,now,sub){
   ctx.restore();
 }
 const LBLW={};
-try{document.fonts&&document.fonts.ready.then(()=>{for(const k in LBLW)delete LBLW[k];});}catch(e){}
+try{document.fonts&&document.fonts.ready.then(()=>{for(const k in LBLW)delete LBLW[k];invalidateMap();});}catch(e){}
 function drawCityFar(C,sx,sy,sc,now,lyOverride){
   const p=S.pops[C.id],down=p&&p.down>S.day,sel=UI.sel&&UI.sel.type==='city'&&UI.sel.id===C.id,hov=UI.hover===C.id||(UI.snap&&UI.snap.id===C.id);
   ctx.save();ctx.translate(sx,sy);ctx.strokeStyle='#1E2640';
@@ -4056,8 +4059,10 @@ function endPtr(e){
 // A cancelled pointer (scroll takeover, palm rejection, system gesture) is not a tap or a drop.
 function cancelPtr(e){ptrs.delete(e.pointerId);if(ptrs.size)return;UI.drag=null;UI.snap=null;cv.classList.remove('linking');cv.style.cursor='grab';renderHint();}
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',cancelPtr);
+// Panning, pinch zoom, hover and link previews must still repaint while paused.
+for(const type of ['pointerdown','pointermove','pointerup','pointercancel','wheel','contextrestored'])cv.addEventListener(type,invalidateMap,{passive:true});
 const ZMIN=0.35,ZMAX=6;
-function zoomAt(mx,my,f){const wx=cam.x+(mx-CW/2)/cam.z,wy=cam.y+(my-CH/2)/cam.z;cam.z=clamp(cam.z*f,ZMIN,ZMAX);cam.x=wx-(mx-CW/2)/cam.z;cam.y=wy-(my-CH/2)/cam.z;wrapCam();}
+function zoomAt(mx,my,f){invalidateMap();const wx=cam.x+(mx-CW/2)/cam.z,wy=cam.y+(my-CH/2)/cam.z;cam.z=clamp(cam.z*f,ZMIN,ZMAX);cam.x=wx-(mx-CW/2)/cam.z;cam.y=wy-(my-CH/2)/cam.z;wrapCam();}
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*0.0015));},{passive:false});
 addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('input,textarea,select,[contenteditable]'))return;if(e.ctrlKey||e.metaKey||e.altKey)return;if(e.code==='Space'&&e.target.closest&&e.target.closest('button,a'))return;if(e.code==='Space'){e.preventDefault();UI.speed=UI.speed?0:1;renderHUD();}if(e.key==='0')ACT.speed({v:0.5});if(e.key==='1')ACT.speed({v:1});if(e.key==='2')ACT.speed({v:2});if(e.key==='3')ACT.speed({v:4});if(e.key==='4')ACT.speed({v:8});if(e.key==='Escape'&&!$('bankBox').hidden){$('bankBox').hidden=true;return;}if(e.key==='Escape'&&!$('dash').hidden){$('dash').hidden=true;return;}if(e.key==='Escape'){if(!$('modal').hidden){if(S&&UI.started&&!S.lost)closeModal();}else{UI.sel=null;renderPanel();}}});
 
@@ -4077,7 +4082,7 @@ function tapOk(e,b){if(!e.isTrusted||!PD.t||e.detail===0)return true;const now=p
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;if(!$('modal').hidden&&!b.closest('#modal'))return;if(!tapOk(e,b))return;audioInit();const fn=ACT[b.dataset.act];if(!fn)return;if(!S&&!['start','randomName','pickStart','cont','help','helpClose','newgame','mute','animSet','soundSet','langSet','closeModal','speed','bankClose','whatsNewShow','updateNow','updateLater','importPick','importGo','modeSet','scenarios','startScn','startWeekly','settings','settingsClose','prefSet','vpSet','install','pitchSkip'].includes(b.dataset.act))return;let a={};try{a=JSON.parse(b.dataset.args||'{}');}catch(_){}fn(a);});
 
 /* ================= LOOP ================= */
-let last=performance.now(),acc=0,hudT=0,animT=0;
+let last=performance.now(),acc=0,hudT=0,animT=0,lastMapAnimations=null;
 function frame(now){
   // Schedule the next frame first: one bad lookup in a day tick must not freeze the whole game.
   if(!window.__TUBES_TEST__)requestAnimationFrame(frame);
@@ -4087,7 +4092,8 @@ function frame(now){
   if(S&&!S.lost&&$('modal').hidden&&UI.speed){acc+=dt*UI.speed;let n=0;while(acc>=DAY_MS&&n<4&&UI.speed){acc-=DAY_MS;try{dayTick();}catch(e){tickErr(e);}n++;}
     if(n){UI.ticking=true;renderHUD();UI.ticking=false;if(!pressing){renderPanel();renderLeft();if(!$('dash').hidden)renderDash();renderBank();}renderHint();}}
   if(UI.speed&&!(S&&S.lost))animT+=dt; /* paused = frozen dots, waves and clouds */
-  try{draw(animOn()?animT:0);}catch(e){tickErr(e);}
+  const animations=animOn();if(animations!==lastMapAnimations){invalidateMap();lastMapAnimations=animations;}
+  if(mapDirty||(animations&&UI.speed&&!(S&&S.lost)))try{draw(animations?animT:0);mapDirty=false;}catch(e){tickErr(e);}
 }
 function tickErr(e){console.error('[tubes] tick failed',e);if(UI.tickErr)return;UI.tickErr=true;track('tick_error',true);
   toast(tr('<b>Something in the NOC glitched.</b><br>The game kept going. If things look odd, export your save and open an issue on GitHub.'),'bad');}

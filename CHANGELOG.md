@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+- Paused maps and maps with animations disabled repaint only when something changes, keeping pan, zoom, selection and build previews responsive.
+
 - Large networks recalculate faster, closed mobile sheets no longer rebuild in the background, and Connections shows 50 entries per page while keeping totals for the full filtered list.
 
 - Fiber between nearby cities bends gently again instead of looping wide around the neighbourhood, so dense regions like Toronto, Ottawa and Montreal stay readable.
