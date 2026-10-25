@@ -79,6 +79,16 @@ English, so new English text never breaks the game; `npm run i18n:check` lists w
 needs translating, and the tests make sure every translation keeps its `{placeholders}`
 and HTML tags.
 
+To benchmark a large save against upstream without adding the save to the repository:
+
+```sh
+git show origin/main:site/index.html > /tmp/tubes-baseline.html
+node scripts/benchmark-performance.js /path/to/save.json /tmp/tubes-baseline.html
+```
+
+This reports headless calculation and DOM timings and checks that the full simulation
+output matches the baseline. It does not measure phone frame rates.
+
 ## Releasing
 
 Only published releases reach [seriesoftub.es](https://seriesoftub.es). Ordinary

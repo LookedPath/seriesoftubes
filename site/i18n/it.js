@@ -2430,4 +2430,7 @@
 "Needs routers with {pn} ports or bigger at both ends ({city}).":"Servono router con porte da {pn} o più grandi a entrambe le estremità ({city}).",
 "Prices include {p} back for the old routers on eBuy.":"I prezzi includono {p} recuperati vendendo i vecchi router su eBuy.",
 "New routers went in today. The next swap can wait until tomorrow.":"I nuovi router sono stati montati oggi. Il prossimo cambio può aspettare domani.",
+"Previous":"Precedente",
+"Next":"Successivo",
+"Connections {first}–{last} of {total}":"Connessioni {first}–{last} di {total}",
 };

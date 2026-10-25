@@ -661,7 +661,7 @@ test('deal navigation visits the first missing POP, including second endpoints a
  const go=()=>dom.window.document.querySelector('#leftBody [data-act="focusCity"]');
  assert.equal(JSON.parse(go().dataset.args).city,'bde');
  ev(`ACT.focusCity(${go().dataset.args})`);assert.equal(ev('UI.sel.id'),'bde');assert.equal(ev('!!S.pops.bde'),false,'navigation does not buy a POP');
- ev("S.pops.bde={routers:1,rgen:0};delete S.pops.fra;renderLeft()");assert.equal(JSON.parse(go().dataset.args).city,'fra','the first endpoint can also be missing');
+ ev("S.pops.bde={routers:1,rgen:0};delete S.pops.fra;UI.leftOpen=true;renderLeft()");assert.equal(JSON.parse(go().dataset.args).city,'fra','the first endpoint can also be missing');
  ev("delete S.pops.bde;renderLeft()");assert.equal(JSON.parse(go().dataset.args).city,'fra','both missing uses the first required city');
  ev("S.pops.fra={routers:1,rgen:0};S.offers[0].type='sdwan';S.offers[0].city2=null;S.offers[0].sites=['fra','ams','par'];window.innerWidth=360;renderLeft()");
  assert.equal(JSON.parse(go().dataset.args).city,'ams');

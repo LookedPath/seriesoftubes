@@ -734,10 +734,15 @@ const subCarrier=km=>Math.max(0,...Object.values(OPT).map(O=>{const m=(O.modes||
 const waveCar=i=>LT[i].car||LT[i].g;
 function subWaveWhy(i,km,sub){if(!sub)return '';const c=subCarrier(km);return waveCar(i)>c?tr('{km} km of cable carries at most {g} per carrier.',{km:Math.round(km).toLocaleString(),g:fmtCap(c)}):'';}
 const subMaxTier=km=>{let t=0;LT.forEach((T,i)=>{if(!subWaveWhy(i,km,true))t=i;});return t;};
-const optG=(o,l)=>{const m=optMode(o,l);return m?m.g:0;};
+// Only live during one compute pass. Actions, day changes and exceptions cannot
+// leave stale channel rates or failure-adjusted capacities behind.
+let COMPUTE_CACHE=null;
+const optG=(o,l)=>{let rates;if(COMPUTE_CACHE){rates=COMPUTE_CACHE.rates.get(l);if(!rates){rates={};COMPUTE_CACHE.rates.set(l,rates);}}
+  if(rates&&rates[o]!==undefined)return rates[o];const m=optMode(o,l),g=m?m.g:0;if(rates)rates[o]=g;return g;};
 const regenNeed=(o,l)=>Math.max(0,Math.ceil(l.km/OPT[o].reach)-1);
-const dfCap=l=>{if(l.ready>S.day||l.eqDown>S.day)return 0;const ch=l.ch||[];let g=0;for(const c of ch)g+=optG(c,l);const f=l.chFail&&l.chFail.until>S.day?l.chFail:null;if(f){const fo=f.o&&ch.includes(f.o)?f.o:ch.slice().sort((a,b)=>optG(a,l)-optG(b,l))[0];if(fo)g-=optG(fo,l);}return Math.max(0,g);};
-const capOf=l=>(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.loss&&l.loss.until>S.day?l.loss.f:1);
+const dfCap=l=>{if(COMPUTE_CACHE&&COMPUTE_CACHE.fiber.has(l))return COMPUTE_CACHE.fiber.get(l);const g=dfCapacity(l);if(COMPUTE_CACHE)COMPUTE_CACHE.fiber.set(l,g);return g;};
+const dfCapacity=l=>{if(l.ready>S.day||l.eqDown>S.day)return 0;const ch=l.ch||[];let g=0;for(const c of ch)g+=optG(c,l);const f=l.chFail&&l.chFail.until>S.day?l.chFail:null;if(f){const fo=f.o&&ch.includes(f.o)?f.o:ch.slice().sort((a,b)=>optG(a,l)-optG(b,l))[0];if(fo)g-=optG(fo,l);}return Math.max(0,g);};
+const capOf=l=>{if(COMPUTE_CACHE&&COMPUTE_CACHE.capacity.has(l))return COMPUTE_CACHE.capacity.get(l);const g=(l.kind==='vxc'?VXC[l.vt].g:l.kind==='df'?dfCap(l):LT[l.tier].g)*(l.deg>S.day?0.5:1)*(l.loss&&l.loss.until>S.day?l.loss.f:1);if(COMPUTE_CACHE)COMPUTE_CACHE.capacity.set(l,g);return g;};
 // A sick LAG (LACP trouble) keeps only part of its capacity until the incident clears.
 const lagF=o=>o&&o.lacp&&o.lacp.until>S.day?o.lacp.f:1,ixLagF=x=>lagF(S.ev&&S.ev.ixlacp&&{lacp:S.ev.ixlacp[x]});
 const tierW=l=>{if(l.kind==='wave')return l.tier;if(l.kind==='vxc')return 0;const g=dfCap(l);return g>=6400?4:g>=1600?3:g>=400?2:g>=100?1:0;};
@@ -1719,7 +1724,9 @@ function teModal(msg){const src=UI.teDraft!==undefined?UI.teDraft:(S.te.script||
 function teTrial(src){const keep=S.te.script,on=S.te.on,before={served:R.served,tc:R.cost.transit||0,moved:R.teMoved||0};
   S.te.script=src;S.te.on=true;compute();const after={served:R.served,tc:R.cost.transit||0,moved:R.teMoved||0,bh:R.teBlack||0};
   S.te.script=keep;S.te.on=on;compute();return {before,after};}
-function compute(){
+function compute(){const previous=COMPUTE_CACHE;COMPUTE_CACHE={rates:new Map(),fiber:new Map(),capacity:new Map(),diversity:new Map()};
+  try{return computeState();}finally{COMPUTE_CACHE=previous;}}
+function computeState(){
   const day=S.day, R2=emptyR(), pops=Object.keys(S.pops).filter(popUp);
   const remote=remoteCities(),adj={}; pops.concat(remote).forEach(p=>adj[p]=[]);
   const edges={},TRX=teRules();
@@ -1819,12 +1826,14 @@ function compute(){
   const eff=(e,n)=>{let r=base(e);if(TR){if(e.k!=='c'&&TR.drain.has(e.city))r=4.6;const o=TR.net[n];if(o){if(o.prefer===e.k)r=0.5;else if(o.avoid===e.k)r=4.5;}}return r;};
   const RANKS=TR?[0,0.5,1,2,3,4,4.5,4.6]:[0,1,2,3,4];
   for(const rank of RANKS){
-    const Er=TR?E:E.filter(e=>base(e)===rank);if(!Er.length)continue;const sorted={};
+    const Er=TR?E:E.filter(e=>base(e)===rank);if(!Er.length)continue;const sorted={},byNet={};
     for(const f of flows){
       if(f.rem<=1e-6||(rank===0&&!f.cache))continue;
       const sp=SP[f.c];
-      const srt=sorted[f.c]||(sorted[f.c]=Er.filter(e=>sp.dist[e.city]!==undefined).sort((a,b)=>(a.pref==='high'?0:1)-(b.pref==='high'?0:1)||sp.dist[a.city]-sp.dist[b.city]));
-      const cands=srt.filter(e=>e.used<e.cap&&e.ok(f.n)&&(!TR||eff(e,f.n)===rank));
+      // Reachability and policy stay fixed in this pass; available capacity does not.
+      const allowed=byNet[f.n]||(byNet[f.n]=Er.filter(e=>e.ok(f.n)&&(!TR||eff(e,f.n)===rank)));
+      const sk=f.c+'|'+f.n;const srt=sorted[sk]||(sorted[sk]=allowed.filter(e=>sp.dist[e.city]!==undefined).sort((a,b)=>(a.pref==='high'?0:1)-(b.pref==='high'?0:1)||sp.dist[a.city]-sp.dist[b.city]));
+      const cands=srt.filter(e=>e.used<e.cap);
       // Exits with the same preference and the same IGP distance form an ECMP group: spread the flow over
       // them by free capacity (like several transits in one city), then top up in order if one fills.
       // Push up to `want` along one path to exit e; returns what fitted.
@@ -1963,7 +1972,9 @@ const reqOk=b=>(b.reqs||[]).every(k=>REQS[k]&&REQS[k].ok(b));
 // Some requirements only make sense for some customers: nobody can reach another continent without getting wet.
 const reqCan=(k,b)=>!REQS[k].can||REQS[k].can(b);
 function reqList(o){return (o.reqs||[]).map(k=>{const ok=REQS[k].ok(o),lab=typeof REQS[k].l==='function'?REQS[k].l(o):REQS[k].l;return `<div class="meta"><b style="color:${ok?'var(--eye)':'var(--bad)'}">${ok?'✓':'✗'}</b> ${esc(lab)}</div>`;}).join('');}
-function diversePaths(a,b){
+function diversePaths(a,b){const key=a+'|'+b;if(COMPUTE_CACHE&&COMPUTE_CACHE.diversity.has(key))return COMPUTE_CACHE.diversity.get(key);
+  const result=liveDiversePaths(a,b);if(COMPUTE_CACHE)COMPUTE_CACHE.diversity.set(key,result);return result;}
+function liveDiversePaths(a,b){
   const rem=remoteCities(),ok=c=>popUp(c)||rem.includes(c);
   return disjointRoutes(a,b,S.links.filter(l=>!linkDown(l)&&ok(l.a)&&ok(l.b)));}
 function disjointRoutes(a,b,live){const srlg=l=>l.kind==='vxc'?'fab:'+l.prov:(l.trench||l.id);
@@ -2716,14 +2727,15 @@ const ACT={
  custSort:({k})=>{if(!['mood','mo','name','city'].includes(k))return;if(UI.custSort===k)UI.custDir=-(UI.custDir||1);else{UI.custSort=k;UI.custDir=k==='mo'?-1:1;}renderDash();},
  custOpen:({sad}={})=>{if(!S)return;UI.kf=sad?{f:'sad'}:{};UI.dtab='cust';const d=$('dash');d.hidden=false;renderDash();d.scrollTop=0;},
  goConn:({city,k})=>{if(!isCity(city)||!own(CONN_K,k))return;$('dash').hidden=true;ACT.goEgress({city,k});},
- connF:({f,v})=>{const F=UI.cf=UI.cf||{};if(f==='all'){UI.cf={};}else if(f==='k'){F.k=own(CONN_K,v)?v:'';}renderDash();},
- connCity:({v})=>{UI.cf=UI.cf||{};UI.cf.city=isCity(v)?v:'';renderDash();},
- connNet:({v})=>{UI.cf=UI.cf||{};UI.cf.net=NET[v]?v:'';renderDash();},
- connSort:({k})=>{if(!['k','city','name','use','mo'].includes(k))return;if(UI.connSort===k)UI.connDir=-(UI.connDir||1);else{UI.connSort=k;UI.connDir=k==='use'||k==='mo'?-1:1;}renderDash();},
+ connPage:({d})=>{if(d!==1&&d!==-1)return;UI.connPage=Math.max(0,(UI.connPage||0)+d);renderDash();$('dash').scrollTop=0;},
+ connF:({f,v})=>{UI.connPage=0;const F=UI.cf=UI.cf||{};if(f==='all'){UI.cf={};}else if(f==='k'){F.k=own(CONN_K,v)?v:'';}renderDash();},
+ connCity:({v})=>{UI.connPage=0;UI.cf=UI.cf||{};UI.cf.city=isCity(v)?v:'';renderDash();},
+ connNet:({v})=>{UI.connPage=0;UI.cf=UI.cf||{};UI.cf.net=NET[v]?v:'';renderDash();},
+ connSort:({k})=>{if(!['k','city','name','use','mo'].includes(k))return;UI.connPage=0;if(UI.connSort===k)UI.connDir=-(UI.connDir||1);else{UI.connSort=k;UI.connDir=k==='use'||k==='mo'?-1:1;}renderDash();},
  connFor:({net})=>{if(!NET[net])return;UI.cf={net};ACT.connOpen();},
  connCancel:({k,id})=>{const r=conns().find(x=>x.k===k&&x.id===id);if(!r||r.mine)return;const key='cc:'+k+':'+id;if(UI.confirm!==key){UI.confirm=key;renderDash();return;}UI.confirm=null;
    if(k==='t')ACT.cancelTransit({id,ok:1});else if(k==='p')ACT.cancelPni({id,ok:1});else if(k==='ix')ACT.cancelIx({city:id,ok:1});else if(k==='c')ACT.rmCache({id});else{const [city,prov]=id.split('|');ACT.rmNni({city,prov});}renderDash();},
- connOpen:()=>{if(!S)return;UI.dtab='conn';const d=$('dash');d.hidden=false;renderDash();d.scrollTop=0;},
+ connOpen:()=>{if(!S)return;UI.connPage=0;UI.dtab='conn';const d=$('dash');d.hidden=false;renderDash();d.scrollTop=0;},
  applyCn:()=>{if(S.cnLic.state!=='none')return;if(!spend(CN_LIC))return;S.cnLic={state:'pending',ready:S.day+45};toast(tr('<b>Application filed.</b><br>Your local partner says about 45 days. Probably.'),'goal');after();},
  togglePrem:({id})=>{const t=S.transit.find(x=>x.id===id);if(!t)return;t.premium=!t.premium;sfx('click');after();},
  buildScrub:({city,tier})=>{if(S.scrubAt)return;const T=SCRUB_TIERS[tier||0];if((lvl()||1)<T.lvl){toast(tr('<b>{tier} scrubbing unlocks at customer level {lv}.</b>',{tier:T.n,lv:T.lvl}),'bad');sfx('err');return;}if(!spend(T.cost))return;S.scrubAt=city;S.scrubTier=tier||0;S.scrubMode='always';toast(tr('<b>{tier} scrubbing center online in {city}.</b><br>Attacks up to {g} are cleaned, and you can sell DDoS protection.',{tier:T.n,city:CITY[city].name,g:fmtG(T.g)}),'good');after();},
@@ -2963,6 +2975,7 @@ function renderLeft(){checkLayer();
   const tab=isTablet(),L=$('left');L.classList.toggle('closed',tab?(!!UI.sel&&!UI.leftOpen):!UI.leftOpen);const tg=$('leftToggle');if(tg&&innerWidth>760)tg.hidden=!(tab&&L.classList.contains('closed'));
   renderTabbar();
   if(!S){L.hidden=true;return;}L.hidden=false;
+  if(L.classList.contains('closed')&&(isTablet()||isPhone()))return;
   const ndone=GOALS.filter(g=>S.done[g.id]!==undefined).length;
   const tabs=[['goals',`${tr('Goals')}<span class="cnt">${ndone}/${GOALS.length}</span>`],['deals',`${tr('Deals')}${S.offers.length?`<span class="cnt">${S.offers.length}</span>`:''}`],['noc',`NOC${S.inc.length?`<span class="cnt red">${S.inc.length}</span>`:''}`],['nets',tr('Networks')]];
   $('leftTabs').innerHTML=tabs.map(([k,l])=>`<button class="${UI.left===k?'on':''}" data-act="leftTab" data-args='{"t":"${k}"}'>${l}</button>`).join('')+(innerWidth<760?`<button data-act="toggleLeft" style="margin-left:auto" aria-label="${tr('Close')}">×</button>`:'');
@@ -3360,6 +3373,7 @@ function connUp(r){if(r.mine)return '';const nx=t=>PORT[t+1]&&portShown(t+1)?t+1
 function connX(r){if(r.mine)return '';const on=UI.confirm==='cc:'+r.k+':'+r.id;
   return btn(on?(r.k==='ix'?tr('Really leave?'):r.k==='t'?tr('Really cancel?'):tr('Really remove?')):r.k==='ix'?tr('Leave IX'):r.k==='t'?tr('Cancel'):r.k==='c'&&r.n>1?tr('− box'):r.k==='nni'?tr('Remove port'):tr('Remove'),'connCancel',{k:r.k,id:r.id},on?'red sm':'ghost sm');}
 function connMatch(r,F){return (!F.k||r.k===F.k)&&(!F.city||r.city===F.city)&&(!F.net||r.net===F.net||(r.nets&&r.nets.includes(F.net)));}
+const CONN_PAGE_SIZE=50;
 function connSection(){const all=conns(),F=UI.cf||{};
   let h=`<div class="panel2" id="connSec" style="margin-top:12px"><h3>${tr('Connections')}</h3><p class="note" style="margin-top:0">${tr('Every port that connects you to another network, and where it is. Filter by type, city or network, and tap Open to go to it.')}</p>`;
   if(!all.length)return h+`<p class="empty">${tr('No connections yet. Buy transit or join an exchange from a POP.')}</p></div>`;
@@ -3372,14 +3386,18 @@ function connSection(){const all=conns(),F=UI.cf||{};
   const sk=UI.connSort||'k',dir=UI.connDir||1,val=r=>sk==='city'?CITY[r.city].name:sk==='name'?r.name.toLowerCase():sk==='use'?(r.cap?r.use/r.cap:0):sk==='mo'?r.mo:CONN_ORD.indexOf(r.k);
   rows.sort((a,b)=>{const A=val(a),B=val(b);return (A<B?-1:A>B?1:0)*dir||CONN_ORD.indexOf(a.k)-CONN_ORD.indexOf(b.k)||CITY[a.city].name.localeCompare(CITY[b.city].name)||a.name.localeCompare(b.name);});
   const tc=rows.reduce((a,r)=>a+r.cap,0),tu=rows.reduce((a,r)=>a+r.use,0),tm=rows.reduce((a,r)=>a+r.mo,0);
+  const pages=Math.max(1,Math.ceil(rows.length/CONN_PAGE_SIZE)),page=UI.connPage=Math.max(0,Math.min(pages-1,Math.floor(+UI.connPage)||0));
+  const start=page*CONN_PAGE_SIZE,visible=rows.slice(start,start+CONN_PAGE_SIZE);
+  const pager=pages>1?`<div class="btns">${btn(tr('Previous'),'connPage',{d:-1},'ghost sm',page===0)}<span class="meta">${tr('Connections {first}–{last} of {total}',{first:start+1,last:start+visible.length,total:rows.length})}</span>${btn(tr('Next'),'connPage',{d:1},'ghost sm',page===pages-1)}</div>`:'';
+  h+=pager;
   if(isPhone()){const st=(r)=>r.down?` <span class="tag restrictive">${tr('DOWN')}</span>`:r.low?` <span class="tag st">${tr('backup')}</span>`:'';
     h+=`<div class="seg" style="margin-bottom:4px">${[['k',tr('Type')],['city',tr('Where')],['use',tr('In use')],['mo',tr('Per month')]].map(([k,l])=>btn(l+(sk===k?(dir>0?' ▲':' ▼'):''),'connSort',{k},sk===k?'pink sm':'ghost sm')).join('')}</div>`;
-    h+=rows.map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<div class="row"${r.down?' style="opacity:.55"':''}>${N?logo(N):`<span class="logo" style="--c:${CONN_COL[r.k]}">${r.k==='nni'?'NNI':'IX'}</span>`}<div class="grow"><div class="nm">${esc(r.name)} <span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span>${st(r)}</div><div class="meta">${esc(CITY[r.city].name)} · ${esc(r.port)} · ${tr('{price}/mo',{price:fmt$(r.mo)})}${r.note?' · '+esc(r.note):''}</div><div class="kv"><span>${tr('In use')}</span><b>${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}</b></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div>${r.mine?'':`<div class="btns">${connUp(r)}${connX(r)}</div>`}</div>${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}</div>`;}).join('');
-    return h+`<div class="kv" style="margin-top:6px"><span><b>${trn('{n} connection','{n} connections',rows.length)}</b></span><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))} · ${tr('{price}/mo',{price:fmt$(tm)})}</b></div></div>`;}
+    h+=visible.map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<div class="row"${r.down?' style="opacity:.55"':''}>${N?logo(N):`<span class="logo" style="--c:${CONN_COL[r.k]}">${r.k==='nni'?'NNI':'IX'}</span>`}<div class="grow"><div class="nm">${esc(r.name)} <span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span>${st(r)}</div><div class="meta">${esc(CITY[r.city].name)} · ${esc(r.port)} · ${tr('{price}/mo',{price:fmt$(r.mo)})}${r.note?' · '+esc(r.note):''}</div><div class="kv"><span>${tr('In use')}</span><b>${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}</b></div><div class="bar ${barCls(u)}"><i style="width:${Math.min(100,u*100)}%"></i></div>${r.mine?'':`<div class="btns">${connUp(r)}${connX(r)}</div>`}</div>${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}</div>`;}).join('');
+    return h+`<div class="kv" style="margin-top:6px"><span><b>${trn('{n} connection','{n} connections',rows.length)}</b></span><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))} · ${tr('{price}/mo',{price:fmt$(tm)})}</b></div>${pager}</div>`;}
   const th=(k,l,c)=>`<th class="${c||''}">${k?`<button class="thb" data-act="connSort" data-args="${esc(JSON.stringify({k}))}">${l}${sk===k?(dir>0?' ▲':' ▼'):''}</button>`:l}</th>`;
   h+=`<div class="tscroll"><table class="tbl"><thead><tr>${th('k',tr('Type'))}${th('city',tr('Where'))}${th('name',tr('With'))}${th('',tr('Port'))}${th('use',tr('In use'),'r')}${th('mo',tr('Per month'),'r')}<th></th></tr></thead><tbody>`;
-  h+=rows.map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<tr${r.down?' style="opacity:.55"':''}><td><span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span></td><td>${esc(CITY[r.city].name)}</td><td><span style="display:inline-flex;align-items:center;gap:6px">${N?logo(N):''}<span><b>${esc(r.name)}</b>${r.note?`<br><span class="meta">${esc(r.note)}</span>`:''}</span></span></td><td>${esc(r.port)}${r.down?` <span class="tag restrictive">${tr('DOWN')}</span>`:r.low?` <span class="tag st">${tr('backup')}</span>`:''}</td><td class="r">${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}<div class="bar ${barCls(u)}" style="margin-top:3px"><i style="width:${Math.min(100,u*100)}%"></i></div></td><td class="r">${fmt$(r.mo)}</td><td><div style="display:flex;flex-wrap:wrap;gap:6px;min-width:220px">${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}${connUp(r)}${connX(r)}</div></td></tr>`;}).join('');
-  h+=`</tbody><tfoot><tr><td colspan="4"><b>${trn('{n} connection','{n} connections',rows.length)}</b></td><td class="r"><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))}</b></td><td class="r"><b>${fmt$(tm)}</b></td><td></td></tr></tfoot></table></div></div>`;
+  h+=visible.map(r=>{const u=r.cap?r.use/r.cap:0,N=r.net&&NET[r.net];return `<tr${r.down?' style="opacity:.55"':''}><td><span class="tag" style="background:${CONN_COL[r.k]}">${tr(CONN_K[r.k])}</span></td><td>${esc(CITY[r.city].name)}</td><td><span style="display:inline-flex;align-items:center;gap:6px">${N?logo(N):''}<span><b>${esc(r.name)}</b>${r.note?`<br><span class="meta">${esc(r.note)}</span>`:''}</span></span></td><td>${esc(r.port)}${r.down?` <span class="tag restrictive">${tr('DOWN')}</span>`:r.low?` <span class="tag st">${tr('backup')}</span>`:''}</td><td class="r">${fmtG(r.use)} / ${fmtCap(Math.round(r.cap))}<div class="bar ${barCls(u)}" style="margin-top:3px"><i style="width:${Math.min(100,u*100)}%"></i></div></td><td class="r">${fmt$(r.mo)}</td><td><div style="display:flex;flex-wrap:wrap;gap:6px;min-width:220px">${btn(tr('Open'),'goConn',{city:r.city,k:r.k},'ghost sm')}${connUp(r)}${connX(r)}</div></td></tr>`;}).join('');
+  h+=`</tbody><tfoot><tr><td colspan="4"><b>${trn('{n} connection','{n} connections',rows.length)}</b></td><td class="r"><b>${fmtG(tu)} / ${fmtCap(Math.round(tc))}</b></td><td class="r"><b>${fmt$(tm)}</b></td><td></td></tr></tfoot></table></div>${pager}</div>`;
   return h;}
 // Where you connect to one network, as buttons that jump to the POP (Networks tab).
 function netWhere(n){const ch=[];
