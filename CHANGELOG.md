@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+- Set the number of each optic model directly on land and subsea fiber links. Apply a whole change at once, with its total price shown before buying; removed optics return to the spares shelf.
+
 - Yellow progress bars are slim again, like the green and red ones, instead of padded boxes.
 - São Paulo's exchange is now called IX.brrr São Paulo, like every other Brazilian exchange (#166).
 - Sponsor a conference: some peering meetings sell sponsorships, and while the glow lasts more customers from that region come knocking (#168).
