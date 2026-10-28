@@ -3,6 +3,9 @@
 function i18nDom(){if(LANG==='en')return;for(const el of document.querySelectorAll('[data-i18n]'))el.textContent=tr(el.dataset.i18n);
   for(const a of ['aria-label','title'])for(const el of document.querySelectorAll(`[data-i18n-${a}]`))el.setAttribute(a,tr(el.getAttribute('data-i18n-'+a)));}
 // One button per [value,label] option; the current one is highlighted.
+// One dropdown instead of a button per language: the list keeps growing, and on phones the system picker opens.
+// Each language is named in itself (lang= lets screen readers say it right).
+const langPick=id=>`<select class="pick" id="${id}" data-chg="langSet" aria-label="${tr('common.language')}">${Object.entries(LANGS).map(([v,l])=>`<option value="${v}" lang="${v}"${v===LANG?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
 function segBtns(act,cur,opts){return opts.map(([v,l])=>btn(l,act,{v},cur===v?'pink sm':'ghost sm')).join('');}
 /* Animation setting: auto follows the system's reduced-motion preference, or force it on or off. */
 /* Settings are per device (localStorage), not part of the save: they are about how you like to play. */
@@ -23,7 +26,7 @@ function settingsHtml(){const seg=(lab,act,cur,opts,note)=>`<div class="setline"
   <h3 class="sub4">${tr('settings.display_and_sound')}</h3>
   ${seg(tr('common.animations'),'animSet',UI.anim||'auto',[['auto',tr('common.auto')],['on',tr('common.on')],['off',tr('common.off')]],tr('settings.auto_follows_your_device_s_reduce'))}
   ${seg(tr('common.sound'),'soundSet',UI.muted?'off':'on',[['on',tr('common.on')],['off',tr('common.off')]])}
-  ${seg(tr('common.language'),'langSet',LANG,Object.entries(LANGS))}
+  <div class="setline"><label for="langSel">${tr('common.language')}</label>${langPick('langSel')}</div>
   ${seg(tr('common.viewport_info'),'vpSet',VP_T?'on':'off',[['on',tr('common.on')],['off',tr('common.off')]],tr('settings.for_reporting_layout_bugs_shows_what'))}
   ${installRow()}<div class="btns" style="margin-top:12px">${btn(tr('common.done_8dd3'),'settingsClose',{},'pink')}</div>`;}
 const refreshSettings=()=>{if(UI.setOpen)openModal(settingsHtml());};

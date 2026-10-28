@@ -358,7 +358,9 @@ test('Sparkly Seabone is a Tier 1 now, but old saves keep the five they played f
   ev("ACT.start({})");
   assert.equal(ev("NET.skl.type"), 't1');
   assert.ok(ev("NET.skl.pops.includes('nyc')&&NET.skl.pops.includes('sao')&&NET.skl.pops.includes('pmo')"));
-  assert.equal(ev("t1Need().length"), 6, 'new games need all six');
+  assert.equal(ev("t1Need().length"), 7, 'new games need all seven, AT&Tease included (#155)');
+  ev("S.t1v=2");
+  assert.equal(ev("t1Need().length"), 6, 'saves from before AT&Tease keep six');
   ev("delete S.t1v");
   assert.equal(ev("t1Need().length"), 5, 'older saves keep five');
   assert.deepEqual(errors, []);
@@ -784,8 +786,9 @@ test('Atlantic islands and Halifax: real landings, real exchanges only, and isla
   assert.equal(hop(['mia', 'pdl', 'lis']), 1600, 'Florida to Lisbon via the Azores');
   assert.equal(direct('atn', 'lis'), 1200);
   assert.equal(hop(['atn', 'bda', 'lis']), 1600);
-  assert.equal(direct('lis', 'lag'), 1200);
+  // Equi-yes follows the coast close enough to fit 1.6T on its own; the Canaries hop matches it
   assert.equal(hop(['lis', 'tci', 'lag']), 1600, 'Lisbon to Lagos via the Canaries');
+  assert.ok(hop(['lis', 'tci', 'lag']) >= direct('lis', 'lag'));
   assert.equal(direct('for', 'mad'), 1200);
   assert.equal(hop(['for', 'rai', 'lis']), 1600, 'Brazil to Europe via Cape Verde');
   assert.equal(hop(['nyc', 'hfx']), 3200);

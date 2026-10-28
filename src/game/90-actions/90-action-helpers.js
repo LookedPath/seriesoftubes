@@ -4,6 +4,8 @@ function landTrenches(a,b){const out=[];for(const l of pairLinks(a,b)){if(l.kind
 // Which route a new wave joins: null = a new diverse route. 'same' is the old two-way choice (the main route).
 function routeJoin(a,b){const ts=landTrenches(a,b),r=UI.route||'';if(r==='same')return ts[0]||null;if(r.startsWith('t:'))return ts.find(t=>t.k===r.slice(2))||null;return null;}
 function pairLinks(a,b){return S.links.filter(l=>(l.a===a&&l.b===b)||(l.a===b&&l.b===a));}
+// A city pair's metric goes with its last link, so a new link between the same cities starts on normal.
+function prunePairMet(){const m=S.pairMet;if(!m)return;const k=new Set(S.links.map(edgeKey));for(const x of Object.keys(m))if(!k.has(x))delete m[x];}
 // Short, busy subsea routes (London–Amsterdam, London–Paris) sell dark fiber pairs too.
 function subDfCable(a,b){return cablesOk(a,b).filter(c=>CAB[c.cid].df).sort((x,y)=>x.km-y.km)[0]||null;}
 function dfAllowed(a,b){if(isSub(a,b))return !!subDfCable(a,b);return cnCity(a)===cnCity(b)&&!uaePair(a,b)&&!landX(a,b);}

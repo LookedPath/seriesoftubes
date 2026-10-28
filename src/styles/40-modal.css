@@ -26,7 +26,15 @@
 @media (prefers-reduced-motion:reduce){:root:not(.anim-force) .coach-glow{animation:none;outline:3px solid #FF4F9A}}
 :root.no-anim .coach-glow{outline:3px solid #FF4F9A}
 .setline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}
-.setline>span{font-weight:800}
+.setline>span,.setline>label{font-weight:800}
+/* Title screen: the big start button across the top, the three others below it, all the same size. */
+.btns.tcta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.btns.tcta .b{margin:0;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.15;white-space:normal;hyphens:auto;-webkit-hyphens:auto;min-height:40px;padding:4px 6px;font-size:14px}
+.btns.tcta .b.big{grid-column:1/-1;font-size:18px;padding:7px 18px 5px}
+/* Dropdowns that look like the game's buttons. 16px text: iOS zooms into anything smaller when it is tapped. */
+select.pick{-webkit-appearance:none;appearance:none;font:800 16px var(--display);color:var(--ink);background:var(--soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%231E2640' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;border:3px solid var(--ink);border-radius:12px;padding:6px 36px 6px 12px;min-height:44px;cursor:pointer;box-shadow:0 3px 0 var(--ink)}
+select.pick:focus-visible{outline:3px solid #FF4F9A;outline-offset:2px}
+label.f+select.pick{width:100%}
 .thb{font:inherit;font-weight:900;background:none;border:0;padding:0;cursor:pointer;color:inherit}
 .ttop{margin:4px 0;padding:4px 8px;border-left:3px solid #FF8A3D;background:#FFF6EC;border-radius:6px}
 .ibx{border:2px solid var(--line,#DDE3EE);border-radius:12px;padding:8px 10px;margin:8px 0;background:#fff}.ibx .nm{font-weight:800}.ibx.mp{border-color:#FF5A5F;background:#FFF1F1}.ibx.ai{border-color:#8E5CF7;background:#F7F2FF}.ibx .term{font-size:11.5px;white-space:pre-wrap;max-height:180px;overflow:auto}.ibx .cnt{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--me);color:#fff;font-size:11px;text-align:center}.ibx .cnt.red{background:#FF5A5F}
@@ -97,6 +105,15 @@ input.t{width:100%;box-sizing:border-box;border:3px solid var(--ink);border-radi
 .start.on{background:#FFE3F0;border-color:var(--me);box-shadow:0 3px 0 var(--me)}
 .start b{font-family:var(--display);font-size:17px;display:block}
 .start span{font-size:12px;color:var(--ink2);line-height:1.3;display:block}
+/* Home cities: compact tiles stacked in one column, the dropdown for any other city last. */
+.starts.homes{display:flex;flex-direction:column;gap:6px}
+.homes .start{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:10px;row-gap:2px;padding:6px 12px;box-shadow:0 2px 0 var(--ink)}
+.homes .start.on{box-shadow:0 2px 0 var(--me)}
+.homes .start b{font-size:16px;flex:0 0 8.4em}
+.homes .start span{flex:1 1 10em;min-width:0}
+.homes .start.own select.pick{flex:1 1 100%;margin:4px 0 2px;min-height:40px;font-size:16px;box-shadow:none;border-width:2px;padding-right:30px;background-position:right 9px center}
+/* In Settings it sits next to small On/Off pills: same 16px text, slimmer frame. */
+.setline select.pick{min-height:36px;padding:4px 30px 4px 10px;border-width:2px;border-radius:10px;box-shadow:0 2px 0 var(--ink);background-position:right 9px center}
 .tiers{display:grid;gap:7px;margin-top:10px}
 .tierbtn{display:flex;align-items:center;gap:10px;border:3px solid var(--ink);border-radius:13px;padding:8px 12px;background:var(--paper);cursor:pointer;box-shadow:0 3px 0 var(--ink);text-align:left}
 .tierbtn:hover{background:#FFF6CF}

@@ -108,9 +108,10 @@ test('the static markup is translated by label', () => {
   assert.equal(ev("document.querySelector('[data-act=help]').getAttribute('aria-label')"), ev("tr('common.how_to_play')"));
 });
 
-test('the language buttons on the title screen work before any game exists', () => {
+test('the language dropdown on the title screen works before any game exists', () => {
   const { ev } = load();
-  ev("[...document.querySelectorAll('#modalCard [data-act=langSet]')].find(b=>b.textContent==='Italiano').click()");
+  assert.equal(ev('S'), null);
+  ev("const s=document.querySelector('#modalCard select#langTitle');s.value='it';s.dispatchEvent(new Event('change',{bubbles:true}))");
   assert.equal(ev("localStorage.getItem('sot-lang')"), 'it');
 });
 

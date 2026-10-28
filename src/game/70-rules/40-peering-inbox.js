@@ -21,7 +21,7 @@ function ibxLog(m,a){const I=ibx();I.log.unshift({d:S.day,m,a:a||{}});I.log.leng
 function inboxDay(d){const I=ibx(),ixs=Object.keys(S.ixp);
   // new peering requests: more exchange ports, more mail
   if(ixs.length&&Math.random()<Math.min(0.9,0.15*ixs.length)*({open:1,selective:0.7,closed:0}[ppol()])){const c=pick(ixs),set=ixSessions(c);
-    const real=ixMembers(c).filter(id=>{const n=NET[id];return !set.has(id)&&n.type!=='t1'&&n.type!=='cdn'&&n.pol!=='paid'&&n.share<=0.006&&!I.items.some(x=>x.net===id&&x.ix===c);});
+    const real=ixMembers(c).filter(id=>{const n=NET[id];return !set.has(id)&&!merged(id)&&n.type!=='t1'&&n.type!=='cdn'&&n.pol!=='paid'&&n.share<=0.006&&!I.items.some(x=>x.net===id&&x.ix===c);});
     const it={id:++I.seq,k:'req',ix:c,day:d,stale:Math.random()<0.6,yrs:1+Math.floor(Math.random()*9),say:Math.floor(Math.random()*REQ_SAY.length)};
     if(real.length&&Math.random()<0.4)it.net=pick(real);else{it.nm=pick(TINY);it.asn=Math.random()<0.05?64512+Math.floor(Math.random()*1000):200000+Math.floor(Math.random()*200000);}
     I.items.push(it);if(ppol()==='open')ibxAnswer(it.id,'accept',true);}

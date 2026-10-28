@@ -3,7 +3,7 @@ let pressing=false;
 document.addEventListener('pointerdown',e=>{if(e.target.closest('#panel,#left,#dash,#bankBox,#modal,#tabbar,#toasts'))pressing=true;});
 addEventListener('pointerup',()=>setTimeout(()=>pressing=false,0));
 addEventListener('pointercancel',()=>{pressing=false;});addEventListener('blur',()=>{pressing=false;});
-document.addEventListener('change',e=>{const el=e.target.closest('[data-chg]');if(!el||!S)return;const fn=ACT[el.dataset.chg];if(fn)fn({v:el.value});});
+document.addEventListener('change',e=>{const el=e.target.closest('[data-chg]');if(!el||(!S&&!['langSet','pickHome'].includes(el.dataset.chg)))return;const fn=ACT[el.dataset.chg];if(fn)fn({v:el.value});});
 /* Taps that land on the wrong thing (#44): a real tap only fires the button it went down on, never something that
    appeared or moved under the finger, nothing behind a menu that opened or closed mid-tap, and no toast button in
    the first half second after the toast popped up. Synthetic clicks (keyboard, tests) are not affected. */

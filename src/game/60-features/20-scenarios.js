@@ -35,6 +35,8 @@ function beginGame(nm,city,o={}){if(needPitch()&&!UI.pitched){UI.pendGame=[nm,ci
   if(o.scn){const sc=o.scn;S.scn={id:sc.id,rules:sc.rules||{},days:sc.days,name:sc.n||tr('features.weekly_challenge_key',{key:sc.key}),key:sc.key||null,mods:(sc.mods||[]).map(m=>m.id)};S.rng=(o.seed||hstr(sc.id))|0;S.mode='scenario';S.asn=200000+Math.floor(Math.random()*15000);
     if(sc.cash)S.cash=sc.cash;if(sc.setup)sc.setup();
     for(const m of S.scn.mods){if(m==='pricey')S.priceMul=1.3;if(m==='poor')S.cash=100000;if(m==='chaos')S.scn.rules.chaos=true;if(m==='boom')S.scn.rules.boom=true;if(m==='dk')S.scn.rules.dkAll=true;if(m==='sharks')S.scn.rules.sharks=true;}}
+  // Every new network starts at ½ speed (#186), whatever the last one ran at: slow enough to look around, but things happen.
+  UI.speed=UI.lastSpeed=0.5;UI.resumeSpeed=null;
   track('game_new');UI.started=true;closeModal();compute();cam.x=CITY[city].x;cam.y=CITY[city].y;cam.z=innerWidth<760?1.1:1.4;selectCity(city);
   toast(S.scn?`<b>${esc(S.scn.name)}</b><br>${o.scn.goal?esc(o.scn.goal)+'.':tr('common.serve_as_much_traffic_as_you')} ${tr('scenarios.you_have_n_days',{n:S.scn.days})}`:S.mode==='sandbox'?tr('scenarios.sandbox_mode_a_billion_dollars_every'):tr('scenarios.welcome_name_the_ripe_ncc_assigned',{name:esc(nm),asn:S.asn,city:CITY[city].name}),'goal');
   renderAll();save();if(!S.scn&&S.mode!=='sandbox')tutorialStart();}

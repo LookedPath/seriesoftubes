@@ -3,7 +3,7 @@ function dayTick(){
   if(!S||S.lost)return;
   S.day++;
   const d=S.day;
-  dkTick(d);ixPriceWar(d);inboxDay(d);pniDay(d);
+  dkTick(d);ixPriceWar(d);inboxDay(d);pniDay(d);mergerDay(d);
   if(!S.phpDone&&d>45&&Math.random()<1/400)elephant();
   if(R&&R.teMoved)S.stats.teMax=Math.max(S.stats.teMax||0,R.teMoved);
   {const t1=!!S.won&&isTier1();if(S.t1Now&&!t1)toast(tr('day_tick.you_are_no_longer_tier_1',{why:t1Why()}),'bad');S.t1Now=t1;}

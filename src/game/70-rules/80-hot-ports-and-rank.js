@@ -11,7 +11,8 @@ function hotPorts(){const out=[];if(!R||!S)return out;
 function hotByCity(){const m={};for(const h of hotPorts())(m[h.city]=m[h.city]||{})[h.k]=Math.max((m[h.city]||{})[h.k]||0,h.u);return m;}
 function isTier2(){return Object.keys(S.pops).length>=5&&Object.keys(S.ixp).length>=3&&R.sessions>=15;}
 // Sparkly Seabone joined the Tier 1s in 1.12. Older saves keep the five they were playing for.
-const t1Need=()=>NETS.filter(n=>n.type==='t1'&&(n.id!=='skl'||(S&&S.t1v>=2)));
+// Tier 1s added later only count for games started after them, so old saves keep their win (#155).
+const t1Need=()=>NETS.filter(n=>n.type==='t1'&&(n.id!=='skl'||(S&&S.t1v>=2))&&(n.id!=='att'||(S&&S.t1v>=3)));
 function isTier1(){return t1Need().every(n=>S.pni.some(p=>p.net===n.id&&pniOn(p)))&&S.transit.length===0&&R.reach>0.999;}
 // What you are now, not what you once were (#46): buying transit again or losing reach drops the label.
 function tierLabel(){return S.won&&isTier1()?'Tier 1':isTier2()?'Tier 2':'Tier 3';}

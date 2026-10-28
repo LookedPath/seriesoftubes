@@ -106,8 +106,10 @@ never freezes the game.
 ## compute(): the traffic model
 
 1. Builds a graph from your live links: parallel links between the same two cities
-   merge into one edge with summed capacity. Link metrics set weights; Dijkstra gives
-   shortest paths from each POP.
+   merge into one edge with summed capacity. The routing metric belongs to the city pair
+   (`S.pairMet`) and sets the edge's weight; Dijkstra gives shortest paths from each POP.
+   Links on standby (`l.standby`) add their capacity to the edge, but when loads are
+   handed back to links the active ones fill first and standby links take the rest.
 2. Builds the exit list `E`: embedded caches (rank 0), PNIs (1), IX ports (2),
    transit (3). Each exit has a capacity, the networks it can reach (`ok(net)`) and an
    egress preference (`high`, `normal`, `low` = backup only).

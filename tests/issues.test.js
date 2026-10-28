@@ -331,7 +331,8 @@ test('#40 overland between continents costs ten times subsea or more, and has no
     const sub=waveMo(c.km,true,2)*CAB[c.cid].price*waveMarket(c.a,c.b,true).m;return [land/sub,!!(CITY[c.a].land2||CITY[c.b].land2)];}))`));
   assert.ok(r.length >= 4, 'Europe–Asia cable routes exist to compare');
   // Across a land bridge (Cairo, #47) the cable goes the long way round Arabia, so overland is "only" 4–9× dearer.
-  for (const [x, bridge] of r) assert.ok(x >= (bridge ? 4 : 10), `overland is at least ${bridge ? 4 : 10}× subsea (${x.toFixed(1)})`);
+  // EIG from Dubai now follows Arabia and the Suez Canal at sea, which makes it a little longer: 9.97× (#183).
+  for (const [x, bridge] of r) assert.ok(x >= (bridge ? 4 : 9.5), `overland is at least ${bridge ? 4 : 9.5}× subsea (${x.toFixed(1)})`);
   assert.equal(ev("landX('mrs','hkg')"), true);
   assert.equal(ev("landX('fra','mrs')"), false, 'inside Europe stays normal');
   assert.equal(ev("landMult('fra','mrs')"), 1);
@@ -815,16 +816,16 @@ test('cancelling from the Connections list confirms once, without forging the pa
 test('diversity offers respect buildable cable routes, not current infrastructure', () => {
   const { ev, dom, errors } = load();
   base(ev);
-  assert.equal(ev("diversityPossible('cbo','den')"), false, 'both Colombo exits share SEE-ME-WAVE 4');
-  assert.equal(ev("diversityPossible('den','cbo')"), false, 'same in reverse');
+  assert.equal(ev("diversityPossible('jam','den')"), false, 'both St Helena exits share Equi-yes');
+  assert.equal(ev("diversityPossible('den','jam')"), false, 'same in reverse');
   assert.equal(ev("diversityPossible('fra','den')"), true, 'expansion is allowed before links are built');
-  ev("S.ev.landban={city:'cbo',until:S.day+100}");
+  ev("S.ev.landban={city:'jam',until:S.day+100}");
   ev('S.won=true');
-  assert.equal(ev("diversityPossible('cbo','den')"), true, 'Tier 1 can build an independent subsea cable');
-  ev("S.scn={rules:{banCities:['cbo']}}");
-  assert.equal(ev("diversityPossible('cbo','den')"), false, 'scenario city bans are respected');
+  assert.equal(ev("diversityPossible('jam','den')"), true, 'Tier 1 can build an independent subsea cable');
+  ev("S.scn={rules:{banCities:['jam']}}");
+  assert.equal(ev("diversityPossible('jam','den')"), false, 'scenario city bans are respected');
   ev('S.scn=null;S.won=false');
-  assert.equal(ev("diversityPossible('cbo','den')"), false, 'cache follows the cable unlock');
+  assert.equal(ev("diversityPossible('jam','den')"), false, 'cache follows the cable unlock');
   assert.deepEqual(errors, []);
   dom.window.close();
 });
@@ -850,7 +851,7 @@ test('save migration checks diversity using the imported cable unlock', () => {
   const { ev, dom, errors } = load();
   base(ev);
   ev(`window.__save=JSON.parse(JSON.stringify(S));__save.offers=[
-    {id:'bad',type:'hyper',city:'cbo',city2:'den',name:'x',bw:1600,rate:1,reqs:['diverse','netchill'],exp:40},
+    {id:'bad',type:'hyper',city:'jam',city2:'den',name:'x',bw:1600,rate:1,reqs:['diverse','netchill'],exp:40},
     {id:'good',type:'hyper',city:'fra',city2:'den',name:'y',bw:1600,rate:1,reqs:['diverse'],exp:40}
   ];__save.biz=[{...__save.offers[0],id:'existing',mood:100,since:0}];S.won=true;__save.won=false`);
   assert.deepEqual(JSON.parse(ev('JSON.stringify(migrate(JSON.parse(JSON.stringify(__save))).offers.map(o=>o.reqs))')), [['netchill'], ['diverse']]);
@@ -1083,9 +1084,9 @@ test('#88 no subsea cable longer than any optic can light, and a refund for call
 
 test('#50 a city without a cable landing points to the nearest one', () => {
   const { ev, errors } = load();
-  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.buildPop({city:'osl'});UI.pending=null;openLinkModal('osl','nyc')");
+  ev("ACT.start({});S.cash=1e9;S.lvl=4;for(const g of GOALS)S.done[g.id]=0;ACT.buildPop({city:'zrh'});UI.pending=null;openLinkModal('zrh','nyc')");
   const t = ev("$('modalCard').textContent");
-  assert.match(t, /No subsea cable lands in Oslo\. The nearest landing station is Stavanger/);
+  assert.match(t, /No subsea cable lands in Zurich\. The nearest landing station is Milan/);
   assert.doesNotMatch(t, /nowhere/);
   assert.deepEqual(errors, []);
 });
